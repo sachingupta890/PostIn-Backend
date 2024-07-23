@@ -1,20 +1,127 @@
 import ErrorHandler from "../utils/utility-class.js";
 import { Product } from "../models/product.js";
 import { rm } from "fs";
-// import {faker} from "@faker-js/faker"
+import { nodeCache } from "../app.js";
+import { logger } from "../winston/logger.js";
+import { invalidateCache } from "../utils/features.js";
+// Revalidate on create / delete and update Product & New Order
+export const getLatestProduct = async (req, res, next) => {
+    try {
+        let products;
+        if (nodeCache.has("latest-products")) {
+            products = JSON.parse(nodeCache.get("latest-products"));
+        }
+        else {
+            products = await Product.find({}).sort({ createdAt: -1 }).limit(5);
+            nodeCache.set("latest-products", JSON.stringify(products));
+        }
+        res.status(200).json({
+            success: true,
+            message: "Latest products fetched successfully",
+            products,
+        });
+    }
+    catch (error) {
+        logger.error(`Error in getLatestProduct: ${error.message}`, {
+            stack: error.stack,
+        });
+    }
+};
+// Revalidate on create / delete and update Product & New Order
+export const getAllCategories = async (req, res, next) => {
+    try {
+        let categories;
+        if (nodeCache.has("categories")) {
+            categories = JSON.parse(nodeCache.get("categories"));
+        }
+        else {
+            categories = await Product.distinct("category");
+            nodeCache.set("categories", JSON.stringify(categories));
+        }
+        res.status(200).json({
+            success: true,
+            message: "All categories fetched successfully",
+            categories,
+        });
+    }
+    catch (error) {
+        logger.error(`Error in getAllCategories: ${error.message}`, {
+            stack: error.stack,
+        });
+        next(error);
+    }
+};
+// Revalidate on create / delete and update Product & New Order
+export const getAdminProduct = async (req, res, next) => {
+    try {
+        let products;
+        if (nodeCache.has("all-products")) {
+            products = JSON.parse(nodeCache.get("all-products"));
+        }
+        else {
+            products = await Product.find({});
+            nodeCache.set("all-products", JSON.stringify(products));
+        }
+        res.status(200).json({
+            success: true,
+            message: "All products fetched successfully",
+            products,
+        });
+    }
+    catch (error) {
+        logger.error(`Error in getAdminProduct: ${error.message}`, {
+            stack: error.stack,
+        });
+        next(error);
+    }
+};
+// Revalidate on create / delete and update Product & New Order
+export const getSingleProduct = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        let product;
+        if (nodeCache.has(`product-${id}`)) {
+            product = JSON.parse(nodeCache.get(`product-${id}`));
+        }
+        else {
+            product = await Product.findById(id);
+            if (!product) {
+                throw new ErrorHandler("Product not found", 404);
+            }
+            nodeCache.set(`product-${id}`, JSON.stringify(product));
+        }
+        res.status(200).json({
+            success: true,
+            message: "Your product fetched successfully",
+            product,
+        });
+    }
+    catch (error) {
+        logger.error(`Error in getSingleProduct: ${error.message}`, {
+            stack: error.stack,
+        });
+        next(error);
+    }
+};
+//create Product 
 export const newProduct = async (req, res, next) => {
     try {
         const { name, category, price, stock } = req.body;
         const photo = req.file;
         if (!photo) {
-            return next(new ErrorHandler("Please Add photo", 401));
+            throw new ErrorHandler("Please add photo", 401);
         }
         if (!name || !price || !category || !stock) {
-            //manually need to delete photo
-            rm(photo.path, () => {
-                console.log("File Deleted");
+            // Manually delete the photo file if other fields are missing
+            rm(photo.path, (err) => {
+                if (err)
+                    logger.error(`Failed to delete file: ${photo.path}`, {
+                        stack: err.stack,
+                    });
+                else
+                    logger.info(`File deleted: ${photo.path}`);
             });
-            return next(new ErrorHandler("Please Enter all Fields", 401));
+            throw new ErrorHandler("Please enter all fields", 401);
         }
         const product = await Product.create({
             name,
@@ -23,72 +130,25 @@ export const newProduct = async (req, res, next) => {
             stock,
             photo: photo.path,
         });
-        return res.status(201).json({
+        invalidateCache({
+            product: true,
+            admin: true,
+            productId: String(product._id),
+        });
+        res.status(201).json({
             success: true,
-            message: "Product Created Successfully",
+            message: "Product created successfully",
             product,
         });
     }
     catch (error) {
-        return next(new ErrorHandler());
-    }
-};
-export const getLatestProduct = async (req, res, next) => {
-    try {
-        const products = await Product.find({}).sort({ createdAt: -1 }).limit(5);
-        return res.status(200).json({
-            success: true,
-            message: "Latest products Fetched Successfully",
-            products,
+        logger.error(`Error in newProduct: ${error.message}`, {
+            stack: error.stack,
         });
-    }
-    catch (error) {
-        return next(new ErrorHandler());
+        next(error);
     }
 };
-export const getAllCategories = async (req, res, next) => {
-    try {
-        const categories = await Product.distinct("category");
-        return res.status(200).json({
-            success: true,
-            message: "All categories Fetched Successfully",
-            categories,
-        });
-    }
-    catch (err) {
-        next(new ErrorHandler());
-    }
-};
-export const getAdminProduct = async (req, res, next) => {
-    try {
-        const products = await Product.find({});
-        return res.status(200).json({
-            success: true,
-            message: "All products Fetched Successfully",
-            products,
-        });
-    }
-    catch (error) {
-        return next(new ErrorHandler());
-    }
-};
-export const getSingleProduct = async (req, res, next) => {
-    try {
-        const id = req.params.id;
-        const product = await Product.findById(id);
-        if (!product) {
-            return next(new ErrorHandler("Product not found", 404));
-        }
-        return res.status(200).json({
-            success: true,
-            message: "Your Product Fetched Successfully",
-            product,
-        });
-    }
-    catch (error) {
-        return next(new ErrorHandler());
-    }
-};
+// Update Product
 export const updateProduct = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -96,15 +156,18 @@ export const updateProduct = async (req, res, next) => {
         const photo = req.file;
         let product = await Product.findById(id);
         if (!product) {
-            return next(new ErrorHandler("Product not found", 404));
+            throw new ErrorHandler("Product not found", 404);
         }
         if (photo) {
-            //first delete the previous photo
-            rm(product.photo, () => {
-                console.log("Old Photo Deleted");
+            // First delete the previous photo
+            rm(product.photo, (err) => {
+                if (err)
+                    logger.error(`Failed to delete old photo: ${product.photo}`, { stack: err.stack });
+                else
+                    logger.info(`Old photo deleted: ${product.photo}`);
             });
-            //add new photo
-            product.photo = photo.path;
+            // Add new photo
+            product.photo = photo?.path;
         }
         if (name)
             product.name = name;
@@ -115,37 +178,54 @@ export const updateProduct = async (req, res, next) => {
         if (category)
             product.category = category;
         const updatedProduct = await product.save();
-        return res.status(201).json({
+        invalidateCache({
+            product: true,
+            admin: true,
+            productId: String(product._id),
+        });
+        res.status(201).json({
             success: true,
-            message: "Product Updated Successfully",
+            message: "Product updated successfully",
             updatedProduct,
         });
     }
     catch (error) {
-        return next(new ErrorHandler());
+        logger.error(`Error in updateProduct: ${error.message}`, { stack: error.stack });
+        next(error);
     }
 };
+// Delete Product
 export const deleteProduct = async (req, res, next) => {
     try {
         const { id } = req.params;
         const product = await Product.findById(id);
         if (!product) {
-            return next(new ErrorHandler("Product not found", 404));
+            throw new ErrorHandler("Product not found", 404);
         }
-        rm(product.photo, () => {
-            console.log("Product Photo Deleted");
+        rm(product.photo, (err) => {
+            if (err)
+                logger.error(`Failed to delete product photo: ${product.photo}`, { stack: err.stack });
+            else
+                logger.info(`Product photo deleted: ${product.photo}`);
         });
-        const deleteResult = await Product.deleteOne();
-        return res.status(200).json({
+        const deleteResult = await Product.deleteOne({ _id: id });
+        invalidateCache({
+            product: true,
+            admin: true,
+            productId: String(product._id),
+        });
+        res.status(200).json({
             success: true,
-            message: "product deleted Successfully",
+            message: "Product deleted successfully",
             deleteResult,
         });
     }
     catch (error) {
-        return next(new ErrorHandler());
+        logger.error(`Error in deleteProduct: ${error.message}`, { stack: error.stack });
+        next(error);
     }
 };
+// Get Filtered Products
 export const getFilteredProduct = async (req, res, next) => {
     try {
         const { search, price, sort, category } = req.query;
@@ -154,49 +234,29 @@ export const getFilteredProduct = async (req, res, next) => {
         const skip = (page - 1) * limit;
         const baseQuery = {};
         if (search) {
-            baseQuery.name = {
-                $regex: search,
-                $options: "i"
-            };
+            baseQuery.name = { $regex: search, $options: "i" };
         }
         if (price) {
-            baseQuery.price = {
-                $lte: Number(price)
-            };
+            baseQuery.price = { $lte: Number(price) };
         }
         if (category) {
             baseQuery.category = category;
         }
-        const products = await Product.find(baseQuery).sort(sort && { price: sort === "asc" ? 1 : -1 }).limit(limit).skip(skip);
-        const filteredOnlyProduct = await Product.find(baseQuery);
-        // console.log(filteredOnlyProduct.length,"-------",limit)
-        const totalPages = Math.ceil(filteredOnlyProduct.length / limit);
-        return res.status(200).json({
+        const products = await Product.find(baseQuery)
+            .sort(sort && { price: sort === "asc" ? 1 : -1 })
+            .limit(limit)
+            .skip(skip);
+        const totalProducts = await Product.countDocuments(baseQuery);
+        const totalPages = Math.ceil(totalProducts / limit);
+        res.status(200).json({
             success: true,
-            message: "Filtered Applied Successfully",
+            message: "Filtered products fetched successfully",
             products,
-            totalPages
+            totalPages,
         });
     }
     catch (error) {
-        return next(new ErrorHandler());
+        logger.error(`Error in getFilteredProduct: ${error.message}`, { stack: error.stack });
+        next(error);
     }
 };
-// const generateRandomProducts = async (count: number = 10) => {
-//   const products = [];
-//   for (let i = 0; i < count; i++) {
-//     const product = {
-//       name: faker.commerce.productName(),
-//       photo: "uploads\\5ecc511f-7c45-464c-a693-9b65b40e29ab.jpg",
-//       price: faker.commerce.price({ min: 1500, max: 80000, dec: 0 }),
-//       stock: faker.commerce.price({ min: 0, max: 100, dec: 0 }),
-//       category: faker.commerce.department(),
-//       createdAt: new Date(faker.date.past()),
-//       updatedAt: new Date(faker.date.recent()),
-//       __v: 0,
-//     };
-//     products.push(product);
-//   }
-//   await Product.create(products);
-//   console.log({ succecss: true });
-// };

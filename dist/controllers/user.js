@@ -11,7 +11,7 @@ export const newUser = async (req, res, next) => {
             });
         }
         if (!_id || !name || !photo || !gender || !dob) {
-            return next(new ErrorHandler("Please provide all the fields", 400));
+            throw new ErrorHandler("Please provide all the fields", 400);
         }
         user = await User.create({
             name,
@@ -27,58 +27,58 @@ export const newUser = async (req, res, next) => {
         });
     }
     catch (error) {
-        return next(new ErrorHandler("Internal server Error", 500));
+        next(error);
     }
 };
 export const getAllUsers = async (req, res, next) => {
     try {
-        const users = await User.find({});
-        return res.status(202).json({
+        const users = await User.find();
+        return res.status(200).json({
             success: true,
-            message: "Users Fetched sucessfully",
-            users
+            message: "Users fetched successfully",
+            users,
         });
     }
-    catch (err) {
-        return next(new ErrorHandler);
+    catch (error) {
+        next(error);
     }
 };
 export const getUserById = async (req, res, next) => {
     try {
         const { id } = req.params;
         if (!id) {
-            return next(new ErrorHandler("Provide the Id First", 401));
+            throw new ErrorHandler("Provide the Id First", 401);
         }
         const user = await User.findById(id);
         if (!user) {
-            return next(new ErrorHandler("No User found", 404));
+            throw new ErrorHandler("No User found", 404);
         }
-        return res.status(202).json({
+        return res.status(200).json({
             success: true,
-            message: "User fetched Succesfully ",
-            user
+            message: "User fetched successfully",
+            user,
         });
     }
     catch (error) {
-        return next(new ErrorHandler);
+        next(error);
     }
 };
 export const deleteUser = async (req, res, next) => {
     try {
-        const id = req.params.id;
+        const { id } = req.params;
         if (!id)
-            return next(new ErrorHandler("Id not found", 404));
-        const user = await User.findById(id);
+            throw new ErrorHandler("Id not found", 404);
+        const user = await User.findByIdAndDelete(id);
         if (!user) {
-            return next(new ErrorHandler("No User to delete", 404));
+            throw new ErrorHandler("No User to delete", 404);
         }
         return res.status(200).json({
             success: true,
-            message: "User Deleted Successfully",
-            user
+            message: "User deleted successfully",
+            user,
         });
     }
     catch (error) {
-        return next(new ErrorHandler());
+        next(error);
     }
 };

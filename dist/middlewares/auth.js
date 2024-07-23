@@ -1,21 +1,25 @@
 import ErrorHandler from "../utils/utility-class.js";
 import { User } from "../models/user.js";
+import { logger } from "../winston/logger.js";
 export const adminOnly = async (req, res, next) => {
     try {
         const { id } = req.query;
         if (!id) {
-            return next(new ErrorHandler("Provide the Id First", 402));
+            throw new ErrorHandler("Provide the Admin Id First", 401);
         }
         const user = await User.findById(id);
         if (!user) {
-            return next(new ErrorHandler("No Person is Present with the id", 404));
+            throw new ErrorHandler("No person found with the provided id", 401);
         }
-        if (user.role != "admin") {
-            return next(new ErrorHandler("this is the Protected route for Admin,", 403));
+        if (user.role !== "admin") {
+            throw new ErrorHandler("This is a protected route for Admins only", 403);
         }
         next();
     }
     catch (error) {
-        return next(new ErrorHandler());
+        logger.error(`Error in adminOnly middleware: ${error.message}`, {
+            stack: error.stack,
+        });
+        next(error);
     }
 };

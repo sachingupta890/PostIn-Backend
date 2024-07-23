@@ -3,6 +3,7 @@ import { User } from "../models/user.js";
 import { NewUserRequestBody } from "../types/types.js";
 import ErrorHandler from "../utils/utility-class.js";
 
+
 export const newUser = async (
   req: Request<{}, {}, NewUserRequestBody>,
   res: Response,
@@ -19,9 +20,11 @@ export const newUser = async (
         message: `Welcome ${user.name}`,
       });
     }
+
     if (!_id || !name || !photo || !gender || !dob) {
-      return next(new ErrorHandler("Please provide all the fields", 400));
+      throw new ErrorHandler("Please provide all the fields", 400);
     }
+
     user = await User.create({
       name,
       email,
@@ -36,83 +39,75 @@ export const newUser = async (
       message: `Welcome ${user.name}`,
     });
   } catch (error) {
-    return next(new ErrorHandler("Internal server Error",500))
+    next(error);
   }
 };
 
 export const getAllUsers = async (
-    req: Request,
-    res: Response,
-    next:NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
-    try {
-        const users = await User.find({})
-        return res.status(202).json({
-            success: true,
-            message: "Users Fetched sucessfully",
-            users
-        })
-        
-    } catch (err) {
-        return next(new ErrorHandler)
-    }
-}
+  try {
+    const users = await User.find();
+    return res.status(200).json({
+      success: true,
+      message: "Users fetched successfully",
+      users,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const getUserById = async (
-    req: Request,
-    res: Response,
-    next:NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
-    try {
-        const { id } = req.params;
-        if (!id) {
-            return next(new ErrorHandler("Provide the Id First",401))
-        }
-
-        const user = await User.findById(id);
-        
-        if (!user) {
-          return next(new ErrorHandler("No User found", 404));
-        }
-    
-        
-        return res.status(202).json({
-            success: true,
-            message: "User fetched Succesfully ",
-            user
-        })
-
-    } catch (error) {
-        return next(new ErrorHandler)
+  try {
+    const { id } = req.params;
+    if (!id) {
+      throw new ErrorHandler("Provide the Id First", 401);
     }
-}
 
+    const user = await User.findById(id);
+
+    if (!user) {
+      throw new ErrorHandler("No User found", 404);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "User fetched successfully",
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const deleteUser = async (
-    req: Request,
-    res: Response,
-    next:NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ) => {
-    try {
+  try {
+    const { id } = req.params;
+    if (!id) throw new ErrorHandler("Id not found", 404);
 
-        const id = req.params.id;
-        if (!id) return next(new ErrorHandler("Id not found", 404));
+    const user = await User.findByIdAndDelete(id);
 
-        const user = await User.findById(id);
-
-        if (!user) {
-            return next(new ErrorHandler("No User to delete",404))
-        }
-    
-        
-        return res.status(200).json({
-            success: true,
-            message: "User Deleted Successfully",
-           user
-        })
-
-        
-    } catch (error) {
-        return next(new ErrorHandler());
+    if (!user) {
+      throw new ErrorHandler("No User to delete", 404);
     }
-}
+
+    return res.status(200).json({
+      success: true,
+      message: "User deleted successfully",
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

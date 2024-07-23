@@ -28,3 +28,44 @@ export interface BaseQueryType {
   price?: { $lte: number };
   category?: string;
 }
+
+export type InvalidateCacheProp = {
+  product?: boolean;
+  order?: boolean;
+  admin?: boolean;
+  productId?: string | string[];
+  orderId?: string;
+  userId?: string; 
+};
+
+export type OrderItemType = {
+  name: string;
+  photo: string;
+  price: number;
+  quantity: number;
+  productId: string;
+}
+
+export type ShippingInfoType = {
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  pincode: number;
+}
+
+export interface NewOrderRequestBody {
+  shippingInfo: ShippingInfoType;
+  user: string;
+  subtotal: number;
+  tax: number;
+  shippingCharges: number;
+  discount: number;
+  total: number;
+  orderItems: OrderItemType[];
+}
+
+export interface NewCouponBody{
+  coupon: string,
+  amount:string
+}
